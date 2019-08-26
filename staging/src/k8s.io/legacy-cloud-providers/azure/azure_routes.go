@@ -41,8 +41,8 @@ import (
 // and exceptions in publishing and allowed imports.
 const (
 	IPv6DualStack      featuregate.Feature = "IPv6DualStack"
-	routeNameFmt                           = "%s____%s"
-	routeNameSeparator                     = "____"
+	routeNameFmt       string              = "%s____%s"
+	routeNameSeparator string              = "____"
 )
 
 // ListRoutes lists all managed routes that belong to the specified clusterName
