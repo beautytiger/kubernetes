@@ -20,7 +20,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-KUBE_ROOT=$(cd $(dirname "${BASH_SOURCE[0]}")/.. && pwd)
+KUBE_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)
 
 DEFAULT_KUBECONFIG="${HOME:-.}/.kube/config"
 
@@ -29,15 +29,15 @@ source "${KUBE_ROOT}/hack/lib/util.sh"
 #
 # NOTE This must match the version_regex in build/common.sh
 # kube::release::parse_and_validate_release_version()
-KUBE_RELEASE_VERSION_REGEX="^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-([a-zA-Z0-9]+)\\.(0|[1-9][0-9]*))?$"
-KUBE_RELEASE_VERSION_DASHED_REGEX="v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)(-([a-zA-Z0-9]+)-(0|[1-9][0-9]*))?"
+export KUBE_RELEASE_VERSION_REGEX="^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-([a-zA-Z0-9]+)\\.(0|[1-9][0-9]*))?$"
+export KUBE_RELEASE_VERSION_DASHED_REGEX="v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)(-([a-zA-Z0-9]+)-(0|[1-9][0-9]*))?"
 
 # KUBE_CI_VERSION_REGEX matches things like "v1.2.3-alpha.4.56+abcdefg" This
 #
 # NOTE This must match the version_regex in build/common.sh
 # kube::release::parse_and_validate_ci_version()
-KUBE_CI_VERSION_REGEX="^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)-([a-zA-Z0-9]+)\\.(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*)\\+[-0-9a-z]*)?$"
-KUBE_CI_VERSION_DASHED_REGEX="^v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-([a-zA-Z0-9]+)-(0|[1-9][0-9]*)(-(0|[1-9][0-9]*)\\+[-0-9a-z]*)?"
+export KUBE_CI_VERSION_REGEX="^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)-([a-zA-Z0-9]+)\\.(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*)\\+[-0-9a-z]*)?$"
+export KUBE_CI_VERSION_DASHED_REGEX="^v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-([a-zA-Z0-9]+)-(0|[1-9][0-9]*)(-(0|[1-9][0-9]*)\\+[-0-9a-z]*)?"
 
 # Generate kubeconfig data for the created cluster.
 # Assumed vars:
@@ -93,17 +93,17 @@ function create-kubeconfig() {
   fi
 
   local user_args=()
-  if [[ ! -z "${KUBE_BEARER_TOKEN:-}" ]]; then
+  if [[ -n "${KUBE_BEARER_TOKEN:-}" ]]; then
     user_args+=(
      "--token=${KUBE_BEARER_TOKEN}"
     )
-  elif [[ ! -z "${KUBE_USER:-}" && ! -z "${KUBE_PASSWORD:-}" ]]; then
+  elif [[ -n "${KUBE_USER:-}" && -n "${KUBE_PASSWORD:-}" ]]; then
     user_args+=(
      "--username=${KUBE_USER}"
      "--password=${KUBE_PASSWORD}"
     )
   fi
-  if [[ ! -z "${KUBE_CERT:-}" && ! -z "${KUBE_KEY:-}" ]]; then
+  if [[ -n "${KUBE_CERT:-}" && -n "${KUBE_KEY:-}" ]]; then
     user_args+=(
      "--client-certificate=${KUBE_CERT}"
      "--client-key=${KUBE_KEY}"
@@ -112,7 +112,7 @@ function create-kubeconfig() {
   fi
 
   KUBECONFIG="${KUBECONFIG}" "${kubectl}" config set-cluster "${CONTEXT}" "${cluster_args[@]}"
-  if [[ -n "${user_args[@]:-}" ]]; then
+  if [[ -n "${user_args[*]:-}" ]]; then
     KUBECONFIG="${KUBECONFIG}" "${kubectl}" config set-credentials "${CONTEXT}" "${user_args[@]}"
   fi
   KUBECONFIG="${KUBECONFIG}" "${kubectl}" config set-context "${CONTEXT}" --cluster="${CONTEXT}" --user="${CONTEXT}"
@@ -124,7 +124,7 @@ function create-kubeconfig() {
   # If we have a bearer token, also create a credential entry with basic auth
   # so that it is easy to discover the basic auth password for your cluster
   # to use in a web browser.
-  if [[ ! -z "${KUBE_BEARER_TOKEN:-}" && ! -z "${KUBE_USER:-}" && ! -z "${KUBE_PASSWORD:-}" ]]; then
+  if [[ -n "${KUBE_BEARER_TOKEN:-}" && -n "${KUBE_USER:-}" && -n "${KUBE_PASSWORD:-}" ]]; then
     KUBECONFIG="${KUBECONFIG}" "${kubectl}" config set-credentials "${CONTEXT}-basic-auth" "--username=${KUBE_USER}" "--password=${KUBE_PASSWORD}"
   fi
 
@@ -147,7 +147,8 @@ function clear-kubeconfig() {
 
   local kubectl="${KUBE_ROOT}/cluster/kubectl.sh"
   # Unset the current-context before we delete it, as otherwise kubectl errors.
-  local cc=$("${kubectl}" config view -o jsonpath='{.current-context}')
+  local cc
+  cc=$("${kubectl}" config view -o jsonpath='{.current-context}')
   if [[ "${cc}" == "${CONTEXT}" ]]; then
     "${kubectl}" config unset current-context
   fi
@@ -173,11 +174,13 @@ function clear-kubeconfig() {
 function get-kubeconfig-basicauth() {
   export KUBECONFIG=${KUBECONFIG:-$DEFAULT_KUBECONFIG}
 
-  local cc=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.current-context}")
-  if [[ ! -z "${KUBE_CONTEXT:-}" ]]; then
+  local cc
+  cc=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.current-context}")
+  if [[ -n "${KUBE_CONTEXT:-}" ]]; then
     cc="${KUBE_CONTEXT}"
   fi
-  local user=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.contexts[?(@.name == \"${cc}\")].context.user}")
+  local user
+  user=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.contexts[?(@.name == \"${cc}\")].context.user}")
   get-kubeconfig-user-basicauth "${user}"
 
   if [[ -z "${KUBE_USER:-}" || -z "${KUBE_PASSWORD:-}" ]]; then
@@ -211,7 +214,7 @@ function get-kubeconfig-user-basicauth() {
 #   KUBE_USER
 #   KUBE_PASSWORD
 function gen-kube-basicauth() {
-    KUBE_USER=admin
+    KUBE_USER="admin"
     KUBE_PASSWORD=$(python -c 'import string,random; print("".join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(16)))')
 }
 
@@ -228,11 +231,13 @@ function gen-kube-basicauth() {
 function get-kubeconfig-bearertoken() {
   export KUBECONFIG=${KUBECONFIG:-$DEFAULT_KUBECONFIG}
 
-  local cc=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.current-context}")
-  if [[ ! -z "${KUBE_CONTEXT:-}" ]]; then
+  local cc
+  cc=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.current-context}")
+  if [[ -n "${KUBE_CONTEXT:-}" ]]; then
     cc="${KUBE_CONTEXT}"
   fi
-  local user=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.contexts[?(@.name == \"${cc}\")].context.user}")
+  local user
+  user=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.contexts[?(@.name == \"${cc}\")].context.user}")
   KUBE_BEARER_TOKEN=$("${KUBE_ROOT}/cluster/kubectl.sh" config view -o jsonpath="{.users[?(@.name == \"${user}\")].user.token}")
 }
 
@@ -245,7 +250,7 @@ function gen-kube-bearertoken() {
 }
 
 function load-or-gen-kube-basicauth() {
-  if [[ ! -z "${KUBE_CONTEXT:-}" ]]; then
+  if [[ -n "${KUBE_CONTEXT:-}" ]]; then
     get-kubeconfig-basicauth
   fi
 
@@ -277,7 +282,7 @@ function load-or-gen-kube-basicauth() {
 #   KUBE_VERSION
 function set_binary_version() {
   if [[ "${1}" =~ "/" ]]; then
-    IFS='/' read -a path <<< "${1}"
+    IFS='/' read -a -r path <<< "${1}"
     if [[ "${path[0]}" == "release" ]]; then
       KUBE_VERSION=$(gsutil cat "gs://kubernetes-release/${1}.txt")
     else
@@ -286,6 +291,7 @@ function set_binary_version() {
   else
     KUBE_VERSION=${1}
   fi
+  export KUBE_VERSION
 }
 
 # Search for the specified tarball in the various known output locations,
@@ -322,8 +328,10 @@ function find-tar() {
 #   SERVER_BINARY_TAR
 #   KUBE_MANIFESTS_TAR
 function find-release-tars() {
+  # shellcheck disable=SC2034
   SERVER_BINARY_TAR=$(find-tar kubernetes-server-linux-amd64.tar.gz)
   if [[ "${NUM_WINDOWS_NODES}" -gt "0" ]]; then
+    # shellcheck disable=SC2034
     NODE_BINARY_TAR=$(find-tar kubernetes-node-windows-amd64.tar.gz)
   fi
 
@@ -331,6 +339,7 @@ function find-release-tars() {
   KUBE_MANIFESTS_TAR=
   if [[ "${MASTER_OS_DISTRIBUTION:-}" == "trusty" || "${MASTER_OS_DISTRIBUTION:-}" == "gci" || "${MASTER_OS_DISTRIBUTION:-}" == "ubuntu" ]] || \
      [[ "${NODE_OS_DISTRIBUTION:-}" == "trusty" || "${NODE_OS_DISTRIBUTION:-}" == "gci" || "${NODE_OS_DISTRIBUTION:-}" == "ubuntu" || "${NODE_OS_DISTRIBUTION:-}" == "custom" ]] ; then
+    # shellcheck disable=SC2034
     KUBE_MANIFESTS_TAR=$(find-tar kubernetes-manifests.tar.gz)
   fi
 }
@@ -357,6 +366,9 @@ function generate-etcd-cert() {
 
   local GEN_ETCD_CA_CERT=${GEN_ETCD_CA_CERT:-}
   local GEN_ETCD_CA_KEY=${GEN_ETCD_CA_KEY:-}
+
+  local ca_cert=${ca_cert:-}
+  local ca_key=${ca_key:-}
 
   mkdir -p "${cert_dir}"
   pushd "${cert_dir}"
@@ -440,13 +452,13 @@ EOF
       ;;
     server)
       echo "Generate server certificates..."
-      echo '{"CN":"'${member_ip}'","hosts":[""],"key":{"algo":"ecdsa","size":256}}' \
+      echo '{"CN":"'"${member_ip}"'","hosts":[""],"key":{"algo":"ecdsa","size":256}}' \
        | ${CFSSL_BIN} gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=server -hostname="${member_ip},127.0.0.1" - \
        | ${CFSSLJSON_BIN} -bare "${prefix}"
       ;;
     peer)
       echo "Generate peer certificates..."
-      echo '{"CN":"'${member_ip}'","hosts":[""],"key":{"algo":"ecdsa","size":256}}' \
+      echo '{"CN":"'"${member_ip}"'","hosts":[""],"key":{"algo":"ecdsa","size":256}}' \
        | ${CFSSL_BIN} gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer -hostname="${member_ip},127.0.0.1" - \
        | ${CFSSLJSON_BIN} -bare "${prefix}"
       ;;
@@ -456,7 +468,7 @@ EOF
       exit 2
   esac
 
-  popd
+  popd "$@"
 }
 
 # Check whether required binaries exist, prompting to download
@@ -475,7 +487,7 @@ function verify-kube-binaries() {
 # If KUBERNETES_SKIP_CONFIRM is set to y, we'll automatically download binaries
 # without prompting.
 function verify-release-tars() {
-  if ! $(find-release-tars); then
+  if ! find-release-tars; then
     download-release-binaries
   fi
 }
@@ -486,7 +498,7 @@ function download-release-binaries() {
   local resp="y"
   if [[ ! "${KUBERNETES_SKIP_CONFIRM:-n}" =~ ^[yY]$ ]]; then
     echo "Required release artifacts appear to be missing. Do you wish to download them? [Y/n]"
-    read resp
+    read -r resp
   fi
   if [[ "${resp}" =~ ^[nN]$ ]]; then
     echo "You must download release artifacts to continue. You can use "
@@ -499,10 +511,10 @@ function download-release-binaries() {
 
 # Run pushd without stack output
 function pushd() {
-  command pushd $@ > /dev/null
+  command pushd "$@" > /dev/null
 }
 
 # Run popd without stack output
 function popd() {
-  command popd $@ > /dev/null
+  command popd "$@" > /dev/null
 }
