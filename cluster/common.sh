@@ -328,20 +328,28 @@ function find-tar() {
 #   SERVER_BINARY_TAR
 #   KUBE_MANIFESTS_TAR
 function find-release-tars() {
-  # shellcheck disable=SC2034
+  local find_tar_result
   SERVER_BINARY_TAR=$(find-tar kubernetes-server-linux-amd64.tar.gz)
+  find_tar_result=$?
+  export SERVER_BINARY_TAR
   if [[ "${NUM_WINDOWS_NODES}" -gt "0" ]]; then
-    # shellcheck disable=SC2034
     NODE_BINARY_TAR=$(find-tar kubernetes-node-windows-amd64.tar.gz)
+    find_tar_result=$?
+    export NODE_BINARY_TAR
   fi
 
   # This tarball is used by GCI, Ubuntu Trusty, and Container Linux.
   KUBE_MANIFESTS_TAR=
   if [[ "${MASTER_OS_DISTRIBUTION:-}" == "trusty" || "${MASTER_OS_DISTRIBUTION:-}" == "gci" || "${MASTER_OS_DISTRIBUTION:-}" == "ubuntu" ]] || \
      [[ "${NODE_OS_DISTRIBUTION:-}" == "trusty" || "${NODE_OS_DISTRIBUTION:-}" == "gci" || "${NODE_OS_DISTRIBUTION:-}" == "ubuntu" || "${NODE_OS_DISTRIBUTION:-}" == "custom" ]] ; then
-    # shellcheck disable=SC2034
     KUBE_MANIFESTS_TAR=$(find-tar kubernetes-manifests.tar.gz)
+    find_tar_result=$?
+    export KUBE_MANIFESTS_TAR
   fi
+
+  # here find_tar_result only stores find-tar return result, it's ok to ingore this check
+  # shellcheck disable=SC2152
+  return find_tar_result
 }
 
 # Run the cfssl command to generates certificate files for etcd service, the
